@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock & Commandes - B&W Burger</title>
+<style>
+:root { --primary: #111827; --accent: #f59e0b; --bg: #f3f4f6; --card: #ffffff; --border: #e5e7eb; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #1f2937; }
+.container { max-width: 700px; margin: 0 auto; }
+.header { background: var(--primary); color: white; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 15px; }
+.header h1 { margin: 0; font-size: 1.4rem; color: var(--accent); }
+.control-panel { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 15px; }
+label { font-weight: bold; font-size: 0.9rem; display: block; margin-bottom: 5px; }
+select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 1rem; background: #fff; font-weight: bold; }
+.product-card { background: var(--card); padding: 12px 15px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.product-info { flex: 1; }
+.product-title { font-weight: bold; font-size: 0.95rem; margin-bottom: 2px; }
+.product-sub { font-size: 0.8rem; color: #6b7280; }
+.input-group { text-align: right; width: 130px; }
+.input-group input { width: 65px; padding: 8px; text-align: center; border-radius: 6px; border: 1px solid #d1d5db; font-size: 1rem; font-weight: bold; }
+.result-box { background: #fef3c7; border: 1px solid #f59e0b; padding: 5px; border-radius: 6px; font-weight: bold; color: #92400e; margin-top: 4px; text-align: center; font-size: 0.8rem; }
+.summary-btn { width: 100%; padding: 14px; background: #059669; color: white; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer; margin-top: 15px; }
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+.modal-content { background: white; padding: 20px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+pre { background: #f3f4f6; padding: 10px; border-radius: 6px; white-space: pre-wrap; font-size: 0.85rem; }
+.close-btn { background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; float: right; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="container">
+<div class="header">
+<h1>🍔 B&W Burger - Gestion Stock</h1>
+<p style="margin: 5px 0 0; font-size: 0.85rem; opacity: 0.9;">Calcul automatique des commandes</p>
+</div>
+
+<div class="control-panel">
+<label for="jourSelect">📅 Jour de Préparation :</label>
+<select id="jourSelect" onchange="actualiserProduits()">
+<option value="Dimanche">Dimanche (Liv. Mercredi / Vendredi)</option>
+<option value="Lundi">Lundi (Liv. Lundi)</option>
+<option value="Mardi">Mardi (Liv. Vendredi)</option>
+<option value="Mercredi">Mercredi (Liv. Lundi / Mercredi / Vendredi)</option>
+<option value="Jeudi">Jeudi (Liv. Lundi METRO)</option>
+</select>
+</div>
+
+<div id="produitsList"></div>
+
+<button class="summary-btn" onclick="genererBonDeCommande()">📄 Générer le Bon de Commande</button>
+</div>
+
+<div id="modalSummary" class="modal">
+<div class="modal-content">
+<button class="close-btn" onclick="fermerModal()">X</button>
+<h3 style="margin-top:0;">📋 Bon de Commande</h3>
+<pre id="summaryText"></pre>
+<button style="width:100%; padding:10px; background:#2563eb; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="copierTexte()">📋 Copier le résumé</button>
+</div>
+</div>
+
+<script>
+const BASE_PRODUITS = [
+// --- SYSCO FRAIS ---
+{ nom: "Pain Smash Blanc", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 3, p3: 5 },
+{ nom: "Pain Smash Noir", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 3, p3: 5 },
+{ nom: "Raclette", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 4, p3: 6 },
+{ nom: "Creamy BBQ", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 1, p3: 0 },
+{ nom: "Sauce Mayo Vegan", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 0, p3: 1 },
+{ nom: "Steak 130g", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Steak 60g", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Sauce West Coast", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Sauce XL Burger", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Sauce Truffe", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Sauce Ketchup", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Sauce Tartare", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Lait Debic", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Compotes", fournisseur: "Sysco Frais", colisage: 1, p1: 0, p2: 0, p3: 0 },
+
+// --- SYSCO SURGELÉ ---
+{ nom: "Pains Blanc", fournisseur: "Sysco Surgelé", colisage: 1, p1: 5, p2: 6, p3: 0 },
+{ nom: "Pain Noir", fournisseur: "Sysco Surgelé", colisage: 1, p1: 5, p2: 6, p3: 0 },
+{ nom: "Frites", fournisseur: "Sysco Surgelé", colisage: 1, p1: 6, p2: 2, p3: 0 },
+{ nom: "Tenders", fournisseur: "Sysco Surgelé", colisage: 1, p1: 2, p2: 2, p3: 0 },
+{ nom: "Patates douce", fournisseur: "Sysco Surgelé", colisage: 1, p1: 2, p2: 2, p3: 0 },
+{ nom: "Galette P.D.T", fournisseur: "Sysco Surgelé", colisage: 1, p1: 2, p2: 2, p3: 0 },
+{ nom: "Mozza sticks", fournisseur: "Sysco Surgelé", colisage: 1, p1: 1, p2: 1, p3: 0 },
+{ nom: "Nuggets", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 1, p3: 0 },
+{ nom: "Brie Bites", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 1, p3: 0 },
+{ nom: "Steak végétal", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 1, p3: 0 },
+{ nom: "Cookie 3 chocolats", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 1, p3: 0 },
+{ nom: "Cookie Matcha", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 1, p3: 0 },
+{ nom: "Bacon timbré", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Lard tranche", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Tomato Croq", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Tiramisus Bueno", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Tiramisus Spéculos", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Chunky Brownie", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Cookie chocolat au lait", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Cookie Oreo", fournisseur: "Sysco Surgelé", colisage: 1, p1: 0, p2: 0, p3: 0 },
+
+// --- METRO ---
+{ nom: "Fromage", fournisseur: "METRO", colisage: 1, p1: 0, p2: 0, p3: 6 },
+{ nom: "Ice Tea 33cl", fournisseur: "METRO", colisage: 24, p1: 0, p2: 0, p3: 0 },
+{ nom: "Ice Tea 50cl", fournisseur: "METRO", colisage: 24, p1: 0, p2: 0, p3: 0 },
+{ nom: "Pepsi 33cl", fournisseur: "METRO", colisage: 24, p1: 0, p2: 0, p3: 0 },
+{ nom: "Pepsi Max 33", fournisseur: "METRO", colisage: 24, p1: 0, p2: 0, p3: 0 },
+{ nom: "Salades", fournisseur: "METRO", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Tomates", fournisseur: "METRO", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Oignons blanc", fournisseur: "METRO", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Sauce cheddar", fournisseur: "METRO", colisage: 1, p1: 0, p2: 0, p3: 0 },
+{ nom: "Cheddar Tranch (Tranches)", fournisseur: "METRO", colisage: 1, p1: 0, p2: 0, p3: 0 }
+];
+
+function obtenirReglePériode(fournisseur, jour) {
+if (fournisseur === "Sysco Frais") {
+if (jour === "Dimanche") return { code: "p2", label: "Liv. Mercredi (P2)" };
+if (jour === "Mardi") return { code: "p3", label: "Liv. Vendredi (P3)" };
+if (jour === "Mercredi") return { code: "p1", label: "Liv. Lundi (P1)" };
+}
+if (fournisseur === "Sysco Surgelé") {
+if (jour === "Lundi") return { code: "p1", label: "Liv. Lundi (P1)" };
+if (jour === "Mercredi") return { code: "p2", label: "Liv. Mercredi (P2)" };
+if (jour === "Dimanche") return { code: "p3", label: "Liv. Vendredi (P3)" };
+}
+if (fournisseur === "METRO") {
+if (jour === "Jeudi") return { code: "p_semaine", label: "Liv. Lundi (Semaine P1+P2)" };
+if (jour === "Mercredi") return { code: "p3", label: "Liv. Vendredi (P3)" };
+}
+return null;
+}
+
+function actualiserProduits() {
+const jour = document.getElementById("jourSelect").value;
+const container = document.getElementById("produitsList");
+container.innerHTML = "";
+
+BASE_PRODUITS.forEach((prod, index) => {
+const regle = obtenirReglePériode(prod.fournisseur, jour);
+if (!regle) return;
+
+let seuil = 0;
+if (regle.code === "p1") seuil = prod.p1;
+else if (regle.code === "p2") seuil = prod.p2;
+else if (regle.code === "p3") seuil = prod.p3;
+else if (regle.code === "p_semaine") seuil = prod.p1 + prod.p2;
+
+const card = document.createElement("div");
+card.className = "product-card";
+card.innerHTML = `
+<div class="product-info">
+<div class="product-title">${prod.nom}</div>
+<div class="product-sub">${prod.fournisseur} | Minimum requis: <b>${seuil}</b></div>
+</div>
+<div class="input-group">
+<input type="number" id="stock_${index}" min="0" placeholder="0" oninput="calculerRendu(${index}, ${seuil}, ${prod.colisage})">
+<div class="result-box" id="res_${index}">À comm: 0</div>
+</div>
+`;
+container.appendChild(card);
+});
+}
+
+function calculerRendu(index, seuil, colisage) {
+const input = document.getElementById(`stock_${index}`);
+if (!input) return;
+const val = parseFloat(input.value) || 0;
+const manque = Math.max(0, seuil - val);
+const cartons = Math.ceil(manque / (colisage || 1));
+document.getElementById(`res_${index}`).innerText = `À comm: ${cartons}`;
+}
+
+function genererBonDeCommande() {
+const jour = document.getElementById("jourSelect").value;
+let txt = `📦 BON DE COMMANDE - ${jour.toUpperCase()}\n-----------------------------------\n`;
+let itemsTrouves = false;
+
+BASE_PRODUITS.forEach((prod, index) => {
+const input = document.getElementById(`stock_${index}`);
+if (!input) return;
+
+const regle = obtenirReglePériode(prod.fournisseur, jour);
+let seuil = 0;
+if (regle.code === "p1") seuil = prod.p1;
+else if (regle.code === "p2") seuil = prod.p2;
+else if (regle.code === "p3") seuil = prod.p3;
+else if (regle.code === "p_semaine") seuil = prod.p1 + prod.p2;
+
+const stock = parseFloat(input.value) || 0;
+const manque = Math.max(0, seuil - stock);
+const cartons = Math.ceil(manque / (prod.colisage || 1));
+
+if (cartons > 0) {
+itemsTrouves = true;
+txt += `• ${prod.nom} (${prod.fournisseur}) : ${cartons} carton(s) [Stock: ${stock} / Min: ${seuil}]\n`;
+}
+});
+
+if (!itemsTrouves) txt += "Aucune commande requise. Le stock actuel couvre les besoins !";
+
+document.getElementById("summaryText").innerText = txt;
+document.getElementById("modalSummary").style.display = "flex";
+}
+
+function fermerModal() { document.getElementById("modalSummary").style.display = "none"; }
+function copierTexte() {
+navigator.clipboard.writeText(document.getElementById("summaryText").innerText);
+alert("Bon de commande copié !");
+}
+
+window.onload = actualiserProduits;
+</script>
+</body>
+</html>
